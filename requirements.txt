@@ -1,0 +1,14 @@
+# Nautilus Trader Backtest Environment
+# Core dependencies for running backtests and strategy development
+
+nautilus-trader
+pyyaml
+pandas
+numpy
+pyarrow
+
+# Testing
+pytest
+
+# Optional: For data visualization (if needed)
+matplotlib

@@ -1,0 +1,80 @@
+# Nautilus Trader Backtest Configuration
+# This configuration file defines the backtest engine, data sources, and strategy parameters
+
+# Engine Configuration
+engine:
+  trader_id: "BACKTEST-001"
+  log_level: "INFO"
+  
+  # Strategy Configuration
+  strategies:
+    - class: "RsiAlgoStrategy"
+      module: "strategies.rsi_algo_template"
+      config:
+        # Strategy Parameters
+        # These match the Pine Script RSI Algo V4 parameters
+        instrument_id: "GC.GLBX"
+        bar_type: "1-MINUTE-LAST-EXTERNAL"
+        
+        # RSI Parameters
+        rsi_period: 14        # RSI calculation period (default: 14)
+        long_entry: 31        # RSI threshold for entering long positions (oversold)
+        long_exit: 83         # RSI threshold for exiting long positions (overbought)
+        
+        # Position Sizing
+        base_qty: 2           # Base position size in contracts
+        
+        # Optional: Pyramid settings
+        enable_pyramid: true  # Allow adding to positions
+        max_position: 6       # Maximum total position size
+
+# Venue Configuration
+venue:
+  name: "GLBX"
+  oms_type: "NETTING"
+  account_type: "MARGIN"
+  base_currency: "USD"
+  starting_balances:
+    - "100000 USD"  # $100,000 starting capital
+
+# Data Configuration
+data:
+  # Parquet data source
+  catalog_path: "./data"
+  
+  # Instrument definition
+  instrument:
+    id: "GC.GLBX"
+    symbol: "GC"
+    venue: "GLBX"
+    asset_class: "COMMODITY"
+    currency: "USD"
+    price_precision: 2
+    size_precision: 0
+    lot_size: 100  # GC futures contract size
+    
+  # Bar data configuration
+  bar_data:
+    path: "./data/gc_1m.parquet"
+    bar_type: "1-MINUTE-LAST-EXTERNAL"
+    start_time: "2022-01-01T00:00:00Z"
+    end_time: "2022-12-31T23:59:59Z"
+    
+  # Required columns in Parquet file
+  # timestamp: datetime64[ns]
+  # open: float64
+  # high: float64
+  # low: float64
+  # close: float64
+  # volume: int64
+
+# Execution Configuration
+execution:
+  bar_execution: false  # Use tick data for realistic execution (if available)
+  fill_model: "LAST"    # Fill model: LAST, MID, or BID_ASK
+
+# Logging Configuration
+logging:
+  log_level: "INFO"
+  log_to_file: false
+  log_file_path: "./logs/backtest.log"
