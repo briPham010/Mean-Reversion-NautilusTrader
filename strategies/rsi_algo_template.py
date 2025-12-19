@@ -118,6 +118,24 @@ class RsiAlgoStrategy(Strategy):
         self.current_rsi: Optional[float] = None
         self.previous_rsi: Optional[float] = None
 
+        # RSI Divergence Variables Here
+
+        self.len = 22
+        self.src = "close"
+        self.lbR = 5
+        self.lbL = 1
+        self.range_upper = 60
+        self.range_lower = 5
+        self.plot_bull = True
+        self.plot_hidden_bull = True
+        self.plot_bear = True
+        self.plot_hidden_bear = False
+
+        # Volumes
+
+        self.volumes: list[float] = []
+
+
         # ====================================================================
         # Initialize Indicators - Choose ONE approach:
         # ====================================================================
@@ -250,6 +268,13 @@ class RsiAlgoStrategy(Strategy):
                     self.position = pos
                     break
 
+        try:
+            v = float(bar.volume.as_double())
+        except:
+            v = float(bar.volume)
+            
+        self.volumes.append(v)
+
         # ====================================================================
         # === TODO 1: Compute indicators ===
         # ====================================================================
@@ -312,6 +337,7 @@ class RsiAlgoStrategy(Strategy):
         s_close = pd.Series(self.prices)
         s_high = pd.Series(self.highs)
         s_low = pd.Series(self.lows)
+        s_volume = pd.Series(self.volumes)
 
         # Calculate RSI
         rsi_series = rsi(s_close, period=self.rsi_period)
@@ -338,6 +364,19 @@ class RsiAlgoStrategy(Strategy):
 
         # Debug logging (Optional: remove later)
         # self._log.info(f"RSI: {self.current_rsi:.2f} | MACD: {self.macd_current:.2f}")
+
+        # RSI Divergence Indicators
+
+        # Calculate short-term volume average
+        vol_short = ema(s_volume, period=46).iloc[-1]
+        vol_long = ema(s_volume, period=92).iloc[-1]
+        self.is_volume_decreasing = vol_short < vol_long
+
+        self.osc = rsi(s_close, self.len)
+
+
+
+
 
         # If indicators aren't ready yet, skip trading logic
         if self.current_rsi is None:
@@ -494,6 +533,9 @@ class RsiAlgoStrategy(Strategy):
             # Check for crossover (RSI was below threshold, now above)
             if self.previous_rsi is not None and self.previous_rsi <= self.long_exit:
                 self.exit_long()
+                self.pyramid_count = 0
+                self.last_entry_bar_index = 0
+                self.last_entry_rsi_level = 0.0
 
         # ====================================================================
         # === OPTIONAL BONUS: Implement RSI divergence logic ===
@@ -517,6 +559,43 @@ class RsiAlgoStrategy(Strategy):
         # ====================================================================
 
         # TODO (OPTIONAL): Implement RSI divergence detection here
+
+        self.bull_divergence = False
+        self.bear_divergence = False
+
+        # Checking for bullish divergence
+
+        # Check for 11 bars of history before attempting pivot checks
+        if len(self.lows) > 12:
+            # pass
+
+            # Now we figure out how to find a pivot low
+
+            pivot_search = -1 - self.lbR
+
+            pivot_search_low = self.lows[pivot_search]
+            pivot_search_high = self.highs[pivot_search]
+            pivot_rsi = rsi_series.iloc[pivot_search]
+
+            # awooga
+            current_window_low = self.lows[pivot_search:]
+            is_pivot_low = (pivot_search_low == min(current_window_low))
+
+            if is_pivot_low:
+                # WE FOUND A PIVOT HOLY
+            
+
+            last_low_pivot = pivot_search_low
+
+            
+
+
+
+
+
+
+
+
         
 
 
