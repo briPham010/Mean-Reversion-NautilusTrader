@@ -119,9 +119,10 @@ class RsiAlgoStrategy(Strategy):
 
         # Indicator values (updated on each bar)
         self.rsi_indicator = RelativeStrengthIndex(period=self.rsi_period)
-        self.rsi_indicator = RelativeStrengthIndex(period=14)
         self.atr_indicator = AverageTrueRange(period=14)
-        self.macd_indicator = MovingAverageConvergenceDivergence(fast_period=12, slow_period=26, price_type=PriceType.LAST)
+        self.macd_indicator = MovingAverageConvergenceDivergence(
+            fast_period=12, slow_period=26, price_type=PriceType.LAST
+        )
         self.signal_indicator = ExponentialMovingAverage(period=9)
 
         self.current_rsi: Optional[float] = None
@@ -129,7 +130,6 @@ class RsiAlgoStrategy(Strategy):
         self.current_atr = None
         self.macd_current = None
         self.signal_current = None
-
 
         self.vol_short_indicator = ExponentialMovingAverage(period=46)
         self.vol_long_indicator = ExponentialMovingAverage(period=92)
@@ -182,7 +182,7 @@ class RsiAlgoStrategy(Strategy):
 
         self._log.info(
             f"RSI Algorithm Strategy started for {self.instrument_id} "
-            f"(RSI period: {self.rsi_period}, Entry: {self.long_entry}, Exit: {self.long_exit})"
+            f"(RSI period: {self.rsi_period}, Entry: {self.long_entry}, Exit: {self.long_exit})",
         )
 
         # TODO: Initialize any additional indicators or state here
@@ -360,7 +360,7 @@ class RsiAlgoStrategy(Strategy):
         # # Calculate RSI
         # rsi_series = rsi(s_close, period=self.rsi_period)
 
-        # # Store current and previous values safely
+        # # Store current and previous values
         # if not rsi_series.empty:
         #     self.current_rsi = rsi_series.iloc[-1]
         #     # Check if we have at least 2 values before accessing [-2]
@@ -380,16 +380,12 @@ class RsiAlgoStrategy(Strategy):
         # atr_series = atr(s_high, s_low, s_close, period=14)
         # self.current_atr = atr_series.iloc[-1]
 
-        # # Debug logging (Optional: remove later)
-        # # self._log.info(f"RSI: {self.current_rsi:.2f} | MACD: {self.macd_current:.2f}")
-
         self.atr_indicator.handle_bar(bar)
         self.macd_indicator.handle_bar(bar)
 
         if self.macd_indicator.initialized:
             raw_macd_value = self.macd_indicator.value
             self.signal_indicator.update_raw(raw_macd_value)
-
 
         # Check if indicators are ready
         self.rsi_indicator.handle_bar(bar)
@@ -408,24 +404,18 @@ class RsiAlgoStrategy(Strategy):
         # RSI Divergence Indicators
         # Calculate short-term volume average
 
-        # self.vol_short_indicator.update_raw(v)
-        # self.vol_long_indicator.update_raw(v)
-        # vol_short = self.vol_short_indicator.value
-        # vol_long = self.vol_long_indicator.value
-        # self.is_volume_decreasing = vol_short < vol_long
+        self.vol_short_indicator.update_raw(v)
+        self.vol_long_indicator.update_raw(v)
+        vol_short = self.vol_short_indicator.value
+        vol_long = self.vol_long_indicator.value
+        self.is_volume_decreasing = vol_short < vol_long
 
+        # Old Volume Calculations
         # vol_short = ema(s_volume, period=46).iloc[-1]
         # vol_long = ema(s_volume, period=92).iloc[-1]
         # self.is_volume_decreasing = vol_short < vol_long
 
         # self.osc = rsi(s_close, self.len)
-
-        if self.bar_index % 10 == 0:
-            self._log.info(
-                f"BAR: {self.bar_index} | "
-                f"MACD: {self.macd_current:.5f} | "
-                f"SIGNAL: {self.signal_current:.5f} | "
-                f"Safe?: {self.macd_current <= self.signal_current}")
 
         # If indicators aren't ready yet, skip trading logic
         if self.current_rsi is None:
@@ -467,13 +457,12 @@ class RsiAlgoStrategy(Strategy):
         #
         if is_macd_safe and is_oversold:
             if not self.is_long and is_oversold and is_macd_safe:
-                # Check for crossover (RSI was above threshold, now below)
-                if (
-                    self.previous_rsi is not None
-                    and self.previous_rsi >= self.long_entry
-                ):
+                # # Check for crossover (RSI was above threshold, now below)
+                # if (
+                #     self.previous_rsi is not None
+                #     and self.previous_rsi >= self.long_entry
+                # ):
                     self.enter_long(qty=self.base_qty)
-
                     self.pyramid_count = 0
                     self.last_entry_bar_index = self.bar_index
                     self.last_entry_rsi_level = self.long_entry
