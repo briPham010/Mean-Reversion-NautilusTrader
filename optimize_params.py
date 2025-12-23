@@ -258,7 +258,7 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
     #
     results: List[OptimizationResult] = []
     tested_combinations = set()
-    for i in range(20):
+    for i in range(100):
         # --- A. Randomly Sample Parameters ---
         # We use a while loop to ensure we pick a unique combination
         attempts = 0
@@ -276,7 +276,7 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
 
         # --- B. Run Backtest ---
         print(
-            f"   Run {i+1}/{20}: Testing [RSI={rsi_period}, Entry={long_entry}, Exit={long_exit}]...",
+            f"   Run {i+1}/{100}: Testing [RSI={rsi_period}, Entry={long_entry}, Exit={long_exit}]...",
             end=" ",
         )
 
@@ -318,6 +318,16 @@ def objective_function(result: OptimizationResult) -> float:
     """
     # Default: maximize Sharpe ratio
     # TODO: Implement your own objective function
+    # if result.num_trades < 5:
+    #     return -1.0
+    
+    # if result.total_return <= 0:
+    #     return result.total_return  # Return the negative number directly
+        
+    # drawdown_penalty = abs(result.max_drawdown) + 0.0001
+    # calmar_ratio = result.total_return / drawdown_penalty
+    
+    # return calmar_ratio
     return result.sharpe_ratio
 
 
