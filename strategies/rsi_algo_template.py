@@ -61,6 +61,11 @@ class RsiAlgoConfig(StrategyConfig):
     enable_pyramid: bool = True
     max_position: int = 6  # Maximum total position size
 
+    # Configurations for Optimization
+    atr_period: int = 30
+    sensitivity: float = 0.1
+    pos_multiplier: float = 1.5
+
 
 class RsiAlgoStrategy(Strategy):
     """
@@ -117,6 +122,7 @@ class RsiAlgoStrategy(Strategy):
         self.last_entry_bar_index = 0
         self.last_entry_rsi_level = 0.0
 
+
         # Indicator values (updated on each bar)
         self.rsi_indicator = RelativeStrengthIndex(period=self.rsi_period)
         self.atr_indicator = AverageTrueRange(period=14)
@@ -131,11 +137,15 @@ class RsiAlgoStrategy(Strategy):
         self.macd_current = None
         self.signal_current = None
 
+        # Other optimization fields
+        self.sensitivity_base = config.sensitivity
+        self.pyramid_multiplier = config.pos_multiplier
+
+        # RSI Divergence Variables Here
+
         self.vol_short_indicator = ExponentialMovingAverage(period=46)
         self.vol_long_indicator = ExponentialMovingAverage(period=92)
         self.is_volume_decreasing = False
-
-        # RSI Divergence Variables Here
 
         self.len = 22
         self.src = "close"
@@ -457,11 +467,11 @@ class RsiAlgoStrategy(Strategy):
         #
         if is_macd_safe and is_oversold:
             if not self.is_long and is_oversold and is_macd_safe:
-                # # Check for crossover (RSI was above threshold, now below)
-                # if (
-                #     self.previous_rsi is not None
-                #     and self.previous_rsi >= self.long_entry
-                # ):
+                # Check for crossover (RSI was above threshold, now below)
+                if (
+                    self.previous_rsi is not None
+                    and self.previous_rsi >= self.long_entry
+                ):
                     self.enter_long(qty=self.base_qty)
                     self.pyramid_count = 0
                     self.last_entry_bar_index = self.bar_index
@@ -502,15 +512,18 @@ class RsiAlgoStrategy(Strategy):
             and self.position.quantity < self.max_position
         ):
 
-            sensitivity = [0.3, 0.3, 0.3, 0.4]
+            s = self.sensitivity_base
+            sensitivity = [s, s, s, s + 0.1]
 
             longPyramidStep1 = self.current_atr * sensitivity[0]
             longPyramidStep2 = self.current_atr * sensitivity[1]
             longPyramidStep3 = self.current_atr * sensitivity[2]
             longPyramidStep4 = self.current_atr * sensitivity[3]
 
+
+            m = self.pyramid_multiplier
+            multipliers = [1.0, 1.0, m, m]
             multiplier = 1
-            multipliers = [1.0, 1.0, 2.0, 2.0]
 
             # Calculate minimum bars, rsiSteps, and multiplier needed for pyramiding
             min_bars = 0

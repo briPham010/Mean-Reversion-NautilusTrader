@@ -24,7 +24,6 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List
 from dataclasses import dataclass
-import copy
 
 
 # TODO: Import any additional libraries you need for your optimization method
@@ -35,6 +34,13 @@ import copy
 # from scipy.optimize import minimize  # For gradient-based methods
 # from skopt import gp_minimize  # For Bayesian optimization (scikit-optimize)
 # import optuna  # For advanced optimization (Optuna library)
+
+import copy
+from skopt import gp_minimize
+from skopt import BayesSearchCV
+from skopt.space import Integer, Categorical, Real
+from skopt.utils import use_named_args
+
 
 # Import backtest runner components
 # Note: You may need to adjust imports based on your run_backtest.py implementation
@@ -48,6 +54,9 @@ class OptimizationResult:
     rsi_period: int
     long_entry: float
     long_exit: float
+    atr_period: int
+    sensitivity_base: float
+    pyramid_multiplier_base: float
     sharpe_ratio: float
     total_return: float
     max_drawdown: float
@@ -56,7 +65,7 @@ class OptimizationResult:
 
 
 def run_with_params(
-    config: Dict[str, Any], rsi_period: int, long_entry: float, long_exit: float
+    config: Dict[str, Any], rsi_period: int, long_entry: float, long_exit: float, atr_period: int, sensitivity_base: float, pyramid_multiplier_base: float
 ) -> OptimizationResult:
     """
     Run a backtest with specific parameters.
@@ -80,6 +89,10 @@ def run_with_params(
     strategy_config["rsi_period"] = rsi_period
     strategy_config["long_entry"] = long_entry
     strategy_config["long_exit"] = long_exit
+
+    strategy_config["atr_period"] = atr_period
+    strategy_config["sensitivity_base"] = sensitivity_base
+    strategy_config["pyramid_multiplier_base"] = pyramid_multiplier_base
 
     try:
         # Set up and run backtest
@@ -127,6 +140,9 @@ def run_with_params(
             rsi_period=rsi_period,
             long_entry=long_entry,
             long_exit=long_exit,
+            atr_period=atr_period,
+            sensitivity_base=sensitivity_base,
+            pyramid_multiplier_base=pyramid_multiplier_base,
             sharpe_ratio=float(sharpe) if sharpe else 0.0,
             total_return=float(total_return) if total_return else 0.0,
             max_drawdown=float(max_drawdown) if max_drawdown else 0.0,
@@ -143,6 +159,9 @@ def run_with_params(
             rsi_period=rsi_period,
             long_entry=long_entry,
             long_exit=long_exit,
+            atr_period=atr_period,
+            sensitivity_base=sensitivity_base,
+            pyramid_multiplier_base=pyramid_multiplier_base,
             sharpe_ratio=0.0,
             total_return=0.0,
             max_drawdown=0.0,
@@ -160,15 +179,17 @@ def get_parameter_ranges() -> Dict[str, List]:
 
     TODO: Adjust these ranges based on your optimization needs and strategy requirements.
     """
-    return {
-        'rsi_period': [10, 12, 14, 16, 18, 20],  # RSI calculation periods
-        'long_entry': [25.0, 28.0, 31.0, 34.0, 37.0, 40.0],  # Oversold thresholds
-        'long_exit': [70.0, 75.0, 80.0, 83.0, 86.0, 90.0],    # Overbought thresholds
-    }
+    return [Integer(10, 20, name='rsi_period'),
+        Real(30.0, 45.0, name='long_entry'),
+        Real(70.0, 85.0, name='long_exit'),
+        Integer(10, 25, name='atr_period'),
+        Real(0.2, 0.8, name = 'sensitivity_base'),
+        Real(1.2, 2.0, name = 'pyramid_multiplier_base')
+    ]
 
 
 def evaluate_parameter_combination(
-    config: Dict[str, Any], rsi_period: int, long_entry: float, long_exit: float
+    config: Dict[str, Any], rsi_period: int, long_entry: float, long_exit: float, atr_period: int, sensitivity_base: float, pyramid_multiplier_base: float
 ) -> OptimizationResult:
     """
     Evaluate a single parameter combination by running a backtest.
@@ -184,7 +205,7 @@ def evaluate_parameter_combination(
     Returns:
         OptimizationResult with performance metrics
     """
-    return run_with_params(config, rsi_period, long_entry, long_exit)
+    return run_with_params(config, rsi_period, long_entry, long_exit, atr_period, sensitivity_base, pyramid_multiplier_base)
 
 
 def optimize_parameters(config_path: str) -> List[OptimizationResult]:
@@ -245,47 +266,42 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
 
     # Get parameter ranges
     param_ranges = get_parameter_ranges()
-    import random
 
-    print("🔍 Starting Parameter Optimization")
-    print(f"📊 Parameter Ranges:")
-    for param, values in param_ranges.items():
-        print(f"   {param}: {values}")
-    print()
     # TODO: IMPLEMENT YOUR OPTIMIZATION METHOD HERE
-    #
-    # Example skeleton for grid search (remove and implement your own):
-    #
     results: List[OptimizationResult] = []
-    tested_combinations = set()
-    for i in range(100):
-        # --- A. Randomly Sample Parameters ---
-        # We use a while loop to ensure we pick a unique combination
-        attempts = 0
-        while attempts < 100:
-            rsi_period = random.choice(param_ranges["rsi_period"])
-            long_entry = random.choice(param_ranges["long_entry"])
-            long_exit = random.choice(param_ranges["long_exit"])
+    # Bayesian Search CV Implementation
 
-            combo_signature = (rsi_period, long_entry, long_exit)
-
-            if combo_signature not in tested_combinations:
-                tested_combinations.add(combo_signature)
-                break
-            attempts += 1
-
-        # --- B. Run Backtest ---
-        print(
-            f"   Run {i+1}/{100}: Testing [RSI={rsi_period}, Entry={long_entry}, Exit={long_exit}]...",
-            end=" ",
-        )
-
-        result = evaluate_parameter_combination(
-            config, rsi_period, long_entry, long_exit
-        )
+    # @used_named_args is actually kinda goated
+    @use_named_args(param_ranges)
+    # Backtest Function
+    def backtest(rsi_period, long_entry, long_exit, atr_period, sensitivity_base, pyramid_multiplier_base):
+        result = evaluate_parameter_combination(config, int(rsi_period),
+                                                float(long_entry),
+                                                float(long_exit),
+                                                int(atr_period),
+                                                float(sensitivity_base),
+                                                float(pyramid_multiplier_base))
+        
         results.append(result)
+        score = result.sharpe_ratio
+        # Negative score is positive Sharpe here
+        return -score
+    
+    # To track what iteration we are on when optimizing so I can eat
+    def tracking_number(res):
+        n_calls = len(res.x_iters)
+        print(f"Iteration {n_calls:<2}/50")
 
-    # --- C. Sort Results (Best Sharpe First) ---
+    res = gp_minimize(
+        func=backtest,
+        dimensions=param_ranges,
+        n_calls=50,
+        n_random_starts=10,
+        random_state=69,
+        callback=[tracking_number]
+    )
+
+    # Sort Results
     results.sort(key=lambda x: x.sharpe_ratio, reverse=True)
 
     return results
@@ -328,6 +344,7 @@ def objective_function(result: OptimizationResult) -> float:
     # calmar_ratio = result.total_return / drawdown_penalty
     
     # return calmar_ratio
+    
     return result.sharpe_ratio
 
 
@@ -353,6 +370,9 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
     print(f"   RSI Period: {best.rsi_period}")
     print(f"   Long Entry: {best.long_entry}")
     print(f"   Long Exit: {best.long_exit}")
+    print(f"   ATR Period: {best.atr_period}")
+    print(f"   Sensitivity: {best.sensitivity_base}")
+    print(f"   Pyramid Multiplier: {best.pyramid_multiplier_base}")
     print(f"\n   Performance Metrics:")
     print(f"   Sharpe Ratio: {best.sharpe_ratio:.2f}")
     print(f"   Total Return: {best.total_return:.2%}")
@@ -363,13 +383,13 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
     # Top N results
     print(f"\n📊 Top {min(top_n, len(results))} Configurations:")
     print(
-        f"{'Rank':<6} {'RSI':<6} {'Entry':<8} {'Exit':<8} {'Sharpe':<10} {'Return':<12} {'PnL':<15} {'Trades':<8}"
+        f"{'Rank':<6} {'RSI':<6} {'Entry':<8} {'Exit':<8} {'ATR': <6} {'Sens':<7} {'Pyramid':<6} {'Sharpe':<10} {'Return':<12} {'PnL':<15} {'Trades':<8}"
     )
-    print("-" * 100)
+    print("-" * 150)
 
     for i, result in enumerate(results[:top_n], 1):
         print(
-            f"{i:<6} {result.rsi_period:<6} {result.long_entry:<8.1f} {result.long_exit:<8.1f} "
+            f"{i:<6} {result.rsi_period:<6} {result.long_entry:<8.1f} {result.long_exit:<8.1f} {result.atr_period:<6} {result.sensitivity_base:<8.1f} {result.pyramid_multiplier_base:<8.1f}"
             f"{result.sharpe_ratio:<10.2f} {result.total_return:<12.2%} "
             f"${result.total_pnl:<14,.2f} {result.num_trades:<8}"
         )
