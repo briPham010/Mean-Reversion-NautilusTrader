@@ -15,8 +15,6 @@ Available approaches you could implement:
 Usage:
     python optimize_params.py
 
-TODO: Implement your optimization method in the optimize_parameters() function.
-
 See Nautilus Backtesting Docs: https://nautilustrader.io/docs/latest/backtesting/
 """
 
@@ -26,7 +24,6 @@ from typing import Dict, Any, List
 from dataclasses import dataclass
 
 
-# TODO: Import any additional libraries you need for your optimization method
 # Examples:
 # import itertools  # For grid search
 # import random     # For random search
@@ -210,12 +207,12 @@ def get_parameter_ranges() -> Dict[str, List]:
     TODO: Adjust these ranges based on your optimization needs and strategy requirements.
     """
     return [
-        Integer(6, 14, name="rsi_period"),
+        Integer(7, 21, name="rsi_period"),
         Real(20.0, 45.0, name="long_entry"),
-        Real(55.0, 70.0, name="long_exit"),
-        Integer(10, 40, name="atr_period"),
-        Real(0.2, 0.8, name="sensitivity_base"),
-        Real(1.2, 2.0, name="pyramid_multiplier_base"),
+        Real(60.0, 80.0, name="long_exit"),
+        Integer(10, 20, name="atr_period"),
+        Real(0.2, 1.5, name="sensitivity_base"),
+        Real(1.0, 2.0, name="pyramid_multiplier_base"),
     ]
 
 def evaluate_parameter_combination(
@@ -312,6 +309,7 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
 
     # @used_named_args is actually kinda goated
     @use_named_args(param_ranges)
+
     # Backtest Function
     def backtest(
         rsi_period,
@@ -332,10 +330,10 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
         )
 
         results.append(result)
-        score = result.sharpe_ratio
-        # For whatever reasongp_minimize minimizes the 
-        # return value, so we return negative score
+        score = result.calmar_ratio
 
+        # For whatever reasongp_minimize minimizes the
+        # return value, so we return negative score
         return -score
 
     # To track what iteration we are on when
@@ -349,13 +347,13 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
         func=backtest,
         dimensions=param_ranges,
         n_calls=10,
-        n_random_starts=10,
+        n_random_starts=2,
         random_state=6767,
         callback=[tracking_number],
     )
 
     # Sort Results
-    results.sort(key=lambda x: x.sharpe_ratio, reverse=True)
+    results.sort(key=lambda x: x.calmar_ratio, reverse=True)
 
     return results
 
@@ -382,7 +380,7 @@ def objective_function(result: OptimizationResult) -> float:
     """
     # Default: maximize Sharpe ratio
 
-    return result.sharpe_ratio
+    return result.calmar_ratio
 
 def print_optimization_summary(results: List[OptimizationResult], top_n: int = 10):
     """
@@ -402,7 +400,7 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
 
     # Best result
     best = results[0]
-    print(f"\n🏆 Best Parameters (by Sharpe Ratio):")
+    print(f"\n🏆 Best Parameters (by Calmar Ratio):")
     print(f"   RSI Period: {best.rsi_period}")
     print(f"   Long Entry: {best.long_entry}")
     print(f"   Long Exit: {best.long_exit}")

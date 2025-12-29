@@ -44,7 +44,6 @@ from nautilus_trader.model.enums import PriceType
 # OPTION 2: Use custom pandas-based indicators (ALTERNATIVE)
 # Uncomment the following line if you prefer custom implementations:
 # from .indicators import rsi, ema, atr, macd
-
 #
 # See indicators.py for more information about both approaches.
 # ====================================================================
@@ -55,15 +54,15 @@ class RsiAlgoConfig(StrategyConfig):
 
     instrument_id: str
     bar_type: str
-    rsi_period: int = 14
-    long_entry: float = 31.0  # RSI threshold for entering long (oversold)
-    long_exit: float = 83.0  # RSI threshold for exiting long (overbought)
+    rsi_period: int = 11
+    long_entry: float = 25  # RSI threshold for entering long (oversold)
+    long_exit: float = 67  # RSI threshold for exiting long (overbought)
     base_qty: int = 2  # Base position size in contracts
     enable_pyramid: bool = True
     max_position: int = 6  # Maximum total position size
 
     # Configurations for Optimization
-    atr_period = 40
+    atr_period = 14
     sensitivity: float = 0.4
     pos_multiplier: float = 2.0
 
@@ -118,7 +117,8 @@ class RsiAlgoStrategy(Strategy):
         self.bar_index = 0
 
         # Pyramid logic here
-        self.pyramid_count = 0
+        self.pyramid_count = 1
+        self.max_pyramids = 5
         self.last_entry_bar_index = 0
         self.last_entry_rsi_level = 0.0
 
@@ -157,17 +157,27 @@ class RsiAlgoStrategy(Strategy):
         self.high_window = deque(maxlen=self.window_size)
         self.low_window = deque(maxlen=self.window_size)
 
-        self.prev_osc_low = None   
+        # Other oscillator variables
+        self.prev_osc_low = None
         self.prev_price_low = None
         self.prev_osc_high = None
         self.prev_price_high = None
-        
+
         self.bullish_divergence = False
         self.bearish_divergence = False
+
+        self.prev_osc_low_index = 0
+        self.prev_osc_high_index = 0
+
+        self.range_lower = 5
+        self.range_upper = 60
 
         # Volumes
         self.volumes: list[float] = []
 
+        # Track entry/exit conditions
+        self.last_entry_signal: Optional[bool] = None
+        self.last_exit_signal: Optional[bool] = None
 
     def pivothigh(self, window):
         """
@@ -181,24 +191,24 @@ class RsiAlgoStrategy(Strategy):
 
         # Go back by x indexes
         current_index = self.lbL
-      
+
         # Convert double queues to lists and place pointer
         w_list = list(window)
         target = w_list[current_index]
 
         # Search left of pointer for something
-        # smaller, otherwise return none
+        # smaller, otherwise exit search
         left_side = w_list[:current_index]
         if left_side and max(left_side) > target:
             return None
 
         # Search right of pointer for something
-        # smaller, otherwise return none
-        right_side = w_list[current_index+1:]
+        # smaller, otherwise exit search
+        right_side = w_list[current_index + 1 :]
         if right_side and max(right_side) >= target:
             return None
 
-        # If our pointer is the greatest point in the window, 
+        # If our pointer is the greatest point in the window,
         # then we've found a high pivot!
         return target
 
@@ -225,14 +235,13 @@ class RsiAlgoStrategy(Strategy):
 
         # Search right of pointer for something
         #  greater, otherwise ext the search
-        right_side = w_list[current_index+1:]
+        right_side = w_list[current_index + 1 :]
         if right_side and min(right_side) <= target:
             return None
 
-        # If our pointer is the lowest point in the window, 
+        # If our pointer is the lowest point in the window,
         # then we've found a low pivot!
         return target
-           
 
         # ====================================================================
         # Initialize Indicators - Choose ONE approach:
@@ -248,10 +257,6 @@ class RsiAlgoStrategy(Strategy):
         #
         # ====================================================================
 
-        # Track entry/exit conditions
-        self.last_entry_signal: Optional[bool] = None
-        self.last_exit_signal: Optional[bool] = None
-
     def on_start(self):
         """
         Called once when the strategy starts.
@@ -266,15 +271,6 @@ class RsiAlgoStrategy(Strategy):
             f"RSI Algorithm Strategy started for {self.instrument_id} "
             f"(RSI period: {self.rsi_period}, Entry: {self.long_entry}, Exit: {self.long_exit})",
         )
-
-        # TODO: Initialize any additional indicators or state here
-        #
-        # If using Nautilus built-in indicators, they should already be initialized in __init__
-        # If using custom indicators, no additional initialization needed here
-        #
-        # Example for additional built-in indicators:
-        # from nautilus_trader.indicators.trend import ExponentialMovingAverage
-        # self.ema_indicator = ExponentialMovingAverage(period=20)
 
     def on_stop(self):
         """
@@ -307,6 +303,9 @@ class RsiAlgoStrategy(Strategy):
         # Update bar history
         self.bar_index += 1
         self.bars.append(bar)
+
+        self.bullish_divergence = False
+        self.bearish_divergence = False
 
         # Extract close price (handle both Price object and direct float)
         try:
@@ -366,69 +365,15 @@ class RsiAlgoStrategy(Strategy):
             v = float(bar.volume)
         self.volumes.append(v)
 
-        # Update Double Queues (Rolling windows for RSI Divergence)
-        if self.current_rsi is not None:
-            self.osc_window.append(self.current_rsi)
-            self.high_window.append(float(bar.high))
-            self.low_window.append(float(bar.low))
-
-
         # ====================================================================
         # === 1: Compute indicators ===
         # ====================================================================
         #
-        # Calculate RSI and any other indicators you need.
-        #
-        # Choose ONE of the following approaches:
-        #
-        # ====================================================================
-        # OPTION 1: Use Nautilus Trader's Built-in Indicators (RECOMMENDED)
-        # ====================================================================
-        #
-        # Built-in indicators are optimized, well-tested, and integrate seamlessly
-        # with Nautilus Trader's bar handling system.
-        #
-        # Example implementation:
-        # Update RSI indicator with the new bar
-        # self.rsi_indicator.handle_bar(bar)
-
-        # # Check if indicator is ready (has enough data)
-        # if self.rsi_indicator.initialized:
-        #     # Get current RSI value
-        #     self.current_rsi = self.rsi_indicator.value
-
-        #     # Store previous value for crossover detection
-        #     if hasattr(self, "_prev_rsi"):
-        #         self.previous_rsi = self._prev_rsi
-        #     self._prev_rsi = self.current_rsi
-        #
-        # Available built-in indicators:
-        #   - RelativeStrengthIndex (from nautilus_trader.indicators.momentum)
-        #   - ExponentialMovingAverage (from nautilus_trader.indicators.trend)
-        #   - AverageTrueRange (from nautilus_trader.indicators.volatility)
-        #   - And many more: https://nautilustrader.io/docs/latest/api_reference/indicators/
-        #
-        # ====================================================================
-        # OPTION 2: Use Custom Pandas-based Indicators (ALTERNATIVE)
-        # ====================================================================
-        #
-        # Custom indicators from indicators.py provide flexibility if you need
-        # custom logic or prefer pandas-based calculations.
-        #
-        # Example implementation:
-        # if len(self.prices) >= self.rsi_period:
-        #     prices_series = pd.Series(self.prices)
-        #     rsi_values = rsi(prices_series, period=self.rsi_period)
-        #     self.current_rsi = rsi_values.iloc[-1]  # Most recent RSI value
-        #     self.previous_rsi = rsi_values.iloc[-2] if len(rsi_values) > 1 else None
-        #
-        # See indicators.py for available custom indicator functions.
-        #
-        # ====================================================================
 
         # Indicator calculations here
         self.atr_indicator.handle_bar(bar)
         self.macd_indicator.handle_bar(bar)
+        self.rsi_indicator.handle_bar(bar)
 
         # Initialize MACD
         if self.macd_indicator.initialized:
@@ -436,13 +381,10 @@ class RsiAlgoStrategy(Strategy):
             self.signal_indicator.update_raw(raw_macd_value)
 
         # Check if indicators are ready
-        self.rsi_indicator.handle_bar(bar)
-        if self.rsi_indicator.initialized:
-
-            # For whatever reason the rsi_indicator returns the 
-            # RSI between a 0 and 1.0 scale so we are multiplying it by 100
-            # to get the actual RSI
-            self.current_rsi = (self.rsi_indicator.value * 100)
+        if self.rsi_indicator.initialized and self.atr_indicator.initialized:
+            self.current_rsi = self.rsi_indicator.value * 100
+        else:
+            return  # Skip if indicators aren't ready
 
         # Store previous value for crossover detection
         if hasattr(self, "_prev_rsi"):
@@ -462,69 +404,65 @@ class RsiAlgoStrategy(Strategy):
         vol_long = self.vol_long_indicator.value
         self.is_volume_decreasing = vol_short < vol_long
 
+        # Update Double Queues (Rolling windows for RSI Divergence)
+        if self.current_rsi is not None:
+            self.osc_window.append(self.current_rsi)
+            self.high_window.append(float(bar.high))
+            self.low_window.append(float(bar.low))
+
         # If indicators aren't ready yet, skip trading logic
         if self.current_rsi is None:
             return
+        
+
         # ====================================================================
-        # === 2: Implement long entry logic ===
-        # ====================================================================
-        #
-        # Enter long positions when RSI crosses below long_entry threshold.
-        #
-        # Logic:
-        # - Check if RSI has crossed below long_entry (oversold condition)
-        # - Only enter if we don't already have a long position
-        # - Use self.enter_long() helper method to place the order
-        #
-        # Hints:
-        # - Compare current_rsi and previous_rsi to detect crossovers
-        # - Check self.position to see if we already have a position
-        # - Use self.is_long property to check for long positions
-        #
-        # Example structure:
-        #   if not self.is_long and self.current_rsi < self.long_entry:
-        #       # Check for crossover (RSI was above threshold, now below)
-        #       if self.previous_rsi is not None and self.previous_rsi >= self.long_entry:
-        #           self.enter_long(qty=self.base_qty)
-        #
-        # See Nautilus Strategy Docs for order submission:
-        # https://nautilustrader.io/docs/latest/strategies/
-        #
+        # === OPTIONAL BONUS: Implement RSI divergence logic ===
         # ====================================================================
 
         # RSI Divergence Detection Logic
         if len(self.low_window) >= self.window_size:
 
             # Bullish Divergence Logic
+            current_pivot_index = self.bar_index - self.lbR
 
             # Check for a low pivot
-            osc = self.pivotlow(self.osc_window)
+            osc_low = self.pivotlow(self.osc_window)
 
             # Low pivot found
-            if osc is not None:
+            if osc_low is not None:
                 curr_price_low = self.low_window[self.lbL]
 
                 # Check if there exists a previous low pivot
                 if self.prev_osc_low is not None:
+                    # Also check if pivot is in range and not 5000 bars off
+                    bars_since_last = current_pivot_index - self.prev_osc_low_index
+                    if self.range_lower <= bars_since_last <= self.range_upper:
 
-                    # Check if RSI is hitting a higher low AND the price a lower low
-                    # Pinescript: oscHL and priceLL
-                    # This indicates the regular bullish divergence
-                    if osc > self.prev_osc_low and curr_price_low < self.prev_price_low:
-                        self.bullish_divergence = True
+                        # Check if RSI is hitting a higher low AND the price a lower low
+                        # Pinescript: oscHL and priceLL
+                        # This indicates the regular bullish divergence
+                        if (
+                            osc_low > self.prev_osc_low
+                            and curr_price_low < self.prev_price_low
+                        ):
+                            self.bullish_divergence = True
 
-                    # Check if RSI is hitting a lower low and price a higher low
-                    # Pinescript: oscLL and priceHL
-                    # This indicates the hidden bullish divergence
-                    elif osc < self.prev_osc_low and curr_price_low > self.prev_price_low:
-                        self.bullish_divergence = True
-                    
-                    else:
-                        self.bullish_divergence = False
+                        # Check if RSI is hitting a lower low and price a higher low
+                        # Pinescript: oscLL and priceHL
+                        # This indicates the hidden bullish divergence
+                        elif (
+                            osc_low < self.prev_osc_low
+                            and curr_price_low > self.prev_price_low
+                        ):
+                            self.bullish_divergence = True
+
+                        else:
+                            self.bullish_divergence = False
 
                 # Update pivot memory
-                self.prev_osc_low = osc
+                self.prev_osc_low = osc_low
                 self.prev_price_low = curr_price_low
+                self.prev_osc_low_index = current_pivot_index
 
             else:
                 # Reset
@@ -533,29 +471,69 @@ class RsiAlgoStrategy(Strategy):
             # Bearish Divergence Logic
 
             # Check for pivot high
-            osc = self.pivothigh(self.osc_window)
-            
+            osc_high = self.pivothigh(self.osc_window)
+
             # Once pivot high has been found:
-            if osc is not None:
+            if osc_high is not None:
+                current_pivot_index = self.bar_index - self.lbR
                 curr_price_high = self.high_window[self.lbL]
-                
+
                 # Check if there exists a high pivot previously
                 if self.prev_osc_high is not None:
-                    
-                    # Check if RSI is hitting a lower high AND the price a higher high
-                    # Pinescript: oscLH and PriceHH
-                    # This indicates bearish divergence
-                    if osc < self.prev_osc_high and curr_price_high > self.prev_price_high:
-                        self.bearish_divergence = True
-                    else:
-                        self.bearish_divergence = False
-                
+
+                    # Check if pivot is in range and not 5000 bars off
+                    bars_since_last = current_pivot_index - self.prev_osc_high_index
+                    if self.range_lower <= bars_since_last <= self.range_upper:
+
+                        # Check if RSI is hitting a lower high AND the price a higher high
+                        # Pinescript: oscLH and PriceHH
+                        # This indicates bearish divergence
+                        if (
+                            osc_high < self.prev_osc_high
+                            and curr_price_high > self.prev_price_high
+                        ):
+                            self.bearish_divergence = True
+                        else:
+                            self.bearish_divergence = False
+
                 # Update pivot memory
-                self.prev_osc_high = osc
+                self.prev_osc_high = osc_high
                 self.prev_price_high = curr_price_high
+                self.prev_osc_high_index = current_pivot_index
             else:
                 # Reset
                 self.bearish_divergence = False
+
+        # ====================================================================
+        # === 4: Implement exit logic ===
+        # ====================================================================
+
+        if self.is_long:
+
+            # Exit #1: if the current RSI value is greater than the long exit level
+            if self.current_rsi > self.long_exit:
+
+                # Check for crossover (RSI was below threshold, now above)
+                if (
+                    self.previous_rsi is not None
+                    and self.previous_rsi <= self.long_exit
+                ):
+
+                    # Exit and reset values
+                    self.exit_long()
+                    self.pyramid_count = 0
+                    self.last_entry_bar_index = 0
+                    self.last_entry_rsi_level = 0.0
+
+            # Exit #2: If there is bearish divergence and volume is decreasing
+            elif self.bearish_divergence and self.is_volume_decreasing:
+                if self.current_rsi > 50:
+
+                    # Exit and reset values
+                    self.exit_long()
+                    self.pyramid_count = 0
+                    self.last_entry_bar_index = 0
+                    self.last_entry_rsi_level = 0.0
 
         # Long Entry logic
         is_macd_safe = self.macd_current <= self.signal_current
@@ -565,7 +543,7 @@ class RsiAlgoStrategy(Strategy):
 
         # Checking for long positions
         if not self.is_long:
-        
+
             # Entry #1: RSI threshold entry gated by MACD path
             if is_macd_safe and is_oversold:
                 # Check for crossover (RSI was above threshold, now below)
@@ -593,29 +571,6 @@ class RsiAlgoStrategy(Strategy):
 
         # ====================================================================
         # === 3: Implement pyramid logic ===
-        # ====================================================================
-        #
-        # Add to existing long positions when conditions are met (pyramiding).
-        #
-        # Logic:
-        # - Only pyramid if enable_pyramid is True
-        # - Check that current position size is less than max_position
-        # - Add to position when RSI is still oversold (e.g., RSI < long_entry)
-        # - Use appropriate position sizing (e.g., base_qty)
-        #
-        # Hints:
-        # - Check self.position.quantity to get current position size
-        # - Use self.enter_long() to add to position
-        # - Consider adding logic to prevent over-trading (e.g., wait N bars between additions)
-        #
-        # Example structure:
-        #   if (self.is_long and
-        #       self.enable_pyramid and
-        #       self.current_rsi < self.long_entry and
-        #       self.position.quantity.as_int() < self.max_position):
-        #       # Add to position
-        #       self.enter_long(qty=self.base_qty)
-        #
         # ====================================================================
 
         # Pyramid Logic
@@ -666,108 +621,39 @@ class RsiAlgoStrategy(Strategy):
                 rsi_step_required = long_pyramid_step_4
                 multiplier = multipliers[3]
 
-            # Check for pyramid conditions
-            if (self.bar_index - self.last_entry_bar_index) >= min_bars:
-                if self.current_rsi <= (self.last_entry_rsi_level - rsi_step_required):
-                    if self.macd_current <= self.signal_current:
+            # Check minimum bar spacing
+            spacing_met = (self.bar_index - self.last_entry_bar_index) >= min_bars
 
-                        # I realized that there was a problem with the pyramiding logic
-                        # Even if the limit was below, the algorithm would buy a qty that
-                        # blows pass the limit, here is the fix:
+            # Check if rsi condition is met
+            rsi_pyramid_condition = (self.last_entry_rsi_level - rsi_step_required)
 
-                        # Propose a quantity to buy, and if its below the max, we can buy
-                        # it, otherwise just buy up to the max position allowed
-                        proposed_qty = int(self.base_qty * multiplier)
-                        current_qty = float(self.position.quantity)
-                        remaining_qty = self.max_position - current_qty
-                        actual_qty_to_buy = min(proposed_qty, remaining_qty)
+            # Attempt pyramid adds
+            if spacing_met:
+                if rsi_pyramid_condition or self.bullish_divergence:
+
+                    # I realized that there was a problem with the pyramiding logic
+                    # Even if the limit was below, the algorithm would buy a qty that
+                    # blows pass the limit, here is the fix:
+
+                    # Propose a quantity to buy, and if its below the max, we can buy
+                    # it, otherwise just buy up to the max position allowed
+                    proposed_qty = int(self.base_qty * multiplier)
+                    current_qty = float(self.position.quantity)
+                    remaining_qty = self.max_position - current_qty
+                    actual_qty_to_buy = min(proposed_qty, remaining_qty)
 
 
-                        if actual_qty_to_buy > 0:
-                            self.enter_long(qty=int(actual_qty_to_buy))
+                    if actual_qty_to_buy > 0:
+                        self.enter_long(qty=int(actual_qty_to_buy))
 
-                            # Update pyramid values
-                            self.pyramid_count += 1
-                            self.last_entry_bar_index = self.bar_index
+                        # Update pyramid values
+                        self.pyramid_count += 1
+                        self.last_entry_bar_index = self.bar_index
 
-                            # Note: last_entry_rsi_level is not literal: it
-                            # behaves like a threshold reference that moves
-                            # downwards after each pyramid
-                            self.last_entry_rsi_level -= rsi_step_required
-
-        # ====================================================================
-        # === 4: Implement exit logic ===
-        # ====================================================================
-        #
-        # Exit long positions when RSI crosses above long_exit threshold.
-        #
-        # Logic:
-        # - Exit when RSI crosses above long_exit (overbought condition)
-        # - Only exit if we have a long position
-        # - Use self.exit_long() helper method to close the position
-        #
-        # Hints:
-        # - Compare current_rsi and previous_rsi to detect crossovers
-        # - Check self.is_long to ensure we have a position to exit
-        # - Consider exiting the entire position or partial exits
-        #
-        # Example structure:
-        #   if self.is_long and self.current_rsi > self.long_exit:
-        #       # Check for crossover (RSI was below threshold, now above)
-        #       if self.previous_rsi is not None and self.previous_rsi <= self.long_exit:
-        #           self.exit_long()
-        #
-        # ====================================================================
-
-        # Exit logic here
-
-        # Check for a long position
-        if self.is_long:
-
-            # Exit #1: if the current RSI value is greater than the long exit level
-            if self.current_rsi > self.long_exit:
-
-            # Check for crossover (RSI was below threshold, now above) and bearish divergence
-            # while volume is decreasing
-                if (self.previous_rsi is not None and self.previous_rsi <= self.long_exit):
-
-                    # Exit and reset values
-                    self.exit_long()
-                    self.pyramid_count = 0
-                    self.last_entry_bar_index = 0
-                    self.last_entry_rsi_level = 0.0
-
-            # Exit #2: If there is bearish divergence and volume is decreasing
-            elif self.bearish_divergence and self.is_volume_decreasing:
-
-                # Exit and reset values
-                self.exit_long()
-                self.pyramid_count = 0
-                self.last_entry_bar_index = 0
-                self.last_entry_rsi_level = 0.0
-
-        # ====================================================================
-        # === OPTIONAL BONUS: Implement RSI divergence logic ===
-        # ====================================================================
-        #
-        # Detect bullish/bearish RSI divergences for enhanced entry/exit signals.
-        #
-        # Bullish Divergence:
-        # - Price makes lower low, but RSI makes higher low
-        # - Strong buy signal
-        #
-        # Bearish Divergence:
-        # - Price makes higher high, but RSI makes lower high
-        # - Strong sell signal
-        #
-        # Hints:
-        # - Track price highs/lows over a lookback period
-        # - Compare RSI values at those price extremes
-        # - Use divergence signals to enhance entry/exit logic
-        #
-        # ====================================================================
-
-        # RSI divergence logic can be found after long entry logic
+                        # Note: last_entry_rsi_level is not literal: it
+                        # behaves like a threshold reference that moves
+                        # downwards after each pyramid
+                        self.last_entry_rsi_level -= rsi_step_required
 
     def on_event(self, event: Event):
         """

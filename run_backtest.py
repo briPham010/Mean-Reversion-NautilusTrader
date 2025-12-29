@@ -31,6 +31,9 @@ from nautilus_trader.model.currencies import USD
 from nautilus_trader.model.objects import Money, Price, Quantity
 from nautilus_trader.model.instruments import FuturesContract
 from nautilus_trader.model.enums import AccountType, OmsType, BarAggregation, PriceType, AssetClass
+from decimal import Decimal
+
+
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -170,6 +173,11 @@ def setup_backtest_engine(config: Dict[str, Any]) -> BacktestEngine:
     # Set up venue
     venue_config = config['venue']
     venue = Venue(venue_config['name'])
+
+    # fee_model = MakerTakerFeeModel(
+    #     maker_fee=Decimal("0.00002"),
+    #     taker_fee=Decimal("0.00002"),
+    # )
     
     engine.add_venue(
         venue=venue,
@@ -177,6 +185,7 @@ def setup_backtest_engine(config: Dict[str, Any]) -> BacktestEngine:
         account_type=AccountType.MARGIN,
         base_currency=USD,
         starting_balances=[Money.from_str(bal) for bal in venue_config['starting_balances']],
+        #fee_model=fee_model,
     )
     
     # Create and add instrument
@@ -351,8 +360,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-    # Hours burned on this project since 12/18/25
-    # 15
