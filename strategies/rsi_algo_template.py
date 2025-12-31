@@ -54,9 +54,9 @@ class RsiAlgoConfig(StrategyConfig):
 
     instrument_id: str
     bar_type: str
-    rsi_period: int = 11
-    long_entry: float = 25  # RSI threshold for entering long (oversold)
-    long_exit: float = 67  # RSI threshold for exiting long (overbought)
+    rsi_period: int = 14
+    long_entry: float = 31  # RSI threshold for entering long (oversold)
+    long_exit: float = 83  # RSI threshold for exiting long (overbought)
     base_qty: int = 2  # Base position size in contracts
     enable_pyramid: bool = True
     max_position: int = 6  # Maximum total position size
@@ -139,7 +139,7 @@ class RsiAlgoStrategy(Strategy):
         self.require_macd_for_long: bool = True
 
         # Other optimization fields
-        self.sensitivity_base = config.sensitivity # 0.3 is default
+        self.sensitivity_base = config.sensitivity  # 0.3 is default
 
         # RSI Divergence Detection Variables
         self.vol_short_indicator = ExponentialMovingAverage(period=46)
@@ -394,7 +394,7 @@ class RsiAlgoStrategy(Strategy):
             and self.atr_indicator.initialized
             and self.osc_rsi_indicator.initialized
         ):
-
+            # Store rsi and oscillating rsi values
             self.current_rsi = self.rsi_indicator.value * 100
             self.current_osc = self.osc_rsi_indicator.value * 100
         else:
@@ -495,7 +495,6 @@ class RsiAlgoStrategy(Strategy):
                         # Check if RSI is hitting a lower high AND the price a higher high
                         # Pinescript: oscLH and PriceHH
                         # This indicates bearish divergence
-
                         bear_cond = (
                             osc_high < self.prev_osc_high
                             and curr_price_high > self.prev_price_high
@@ -554,7 +553,7 @@ class RsiAlgoStrategy(Strategy):
         # Trigger: RSI is below entry level
         is_oversold = self.current_rsi < self.long_entry
 
-                # Checking for long positions
+        # Checking for long positions
         if not self.is_long:
 
             # Entry #1: RSI threshold entry gated by MACD path
@@ -643,7 +642,7 @@ class RsiAlgoStrategy(Strategy):
             # Attempt pyramid adds
             if spacing_met:
                 if (rsi_pyramid_condition and is_macd_safe) or self.bullish_divergence:
-                
+
                     # I realized that there was a problem with the pyramiding logic
                     # Even if the limit was below, the algorithm would buy a qty that
                     # blows pass the limit, here is the fix:

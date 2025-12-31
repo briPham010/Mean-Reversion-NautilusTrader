@@ -160,7 +160,7 @@ def run_with_params(
             drawdown_penalty = 0.0001
         calmar = 0.0
         if calculated_return > 0:
-             calmar = calculated_return / drawdown_penalty
+            calmar = calculated_return / drawdown_penalty
 
         return OptimizationResult(
             rsi_period=rsi_period,
@@ -197,6 +197,7 @@ def run_with_params(
             num_trades=0,
         )
 
+
 def get_parameter_ranges() -> Dict[str, List]:
     """
     Define parameter ranges for optimization.
@@ -214,6 +215,7 @@ def get_parameter_ranges() -> Dict[str, List]:
         Real(0.2, 1.5, name="sensitivity_base"),
         Real(1.0, 2.5, name="pyramid_multiplier_base"),
     ]
+
 
 def evaluate_parameter_combination(
     config: Dict[str, Any],
@@ -247,6 +249,7 @@ def evaluate_parameter_combination(
         sensitivity_base,
         pyramid_multiplier_base,
     )
+
 
 def optimize_parameters(config_path: str) -> List[OptimizationResult]:
     """
@@ -330,7 +333,7 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
         )
 
         results.append(result)
-        score = result.calmar_ratio
+        score = result.sharpe_ratio
 
         # For whatever reasongp_minimize minimizes the
         # return value, so we return negative score
@@ -346,14 +349,14 @@ def optimize_parameters(config_path: str) -> List[OptimizationResult]:
     res = gp_minimize(
         func=backtest,
         dimensions=param_ranges,
-        n_calls=10,
-        n_random_starts=2,
+        n_calls=50,
+        n_random_starts=10,
         random_state=6767,
         callback=[tracking_number],
     )
 
     # Sort Results
-    results.sort(key=lambda x: x.calmar_ratio, reverse=True)
+    results.sort(key=lambda x: x.sharpe_ratio, reverse=True)
 
     return results
 
@@ -382,6 +385,7 @@ def objective_function(result: OptimizationResult) -> float:
 
     return result.calmar_ratio
 
+
 def print_optimization_summary(results: List[OptimizationResult], top_n: int = 10):
     """
     Print summary of optimization results.
@@ -400,7 +404,7 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
 
     # Best result
     best = results[0]
-    print(f"\n🏆 Best Parameters (by Calmar Ratio):")
+    print(f"\n🏆 Best Parameters (by Sharpe Ratio):")
     print(f"   RSI Period: {best.rsi_period}")
     print(f"   Long Entry: {best.long_entry}")
     print(f"   Long Exit: {best.long_exit}")
@@ -454,7 +458,6 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
             print(f"   Average Calmar: {sum(calmars) / len(calmars):.2f}")
             print(f"   Max Calmar: {max(calmars):.2f}")
 
-
     print("\n" + "=" * 100)
 
     # Recommendation
@@ -464,11 +467,13 @@ def print_optimization_summary(results: List[OptimizationResult], top_n: int = 1
     print(f"   long_entry: {best.long_entry}")
     print(f"   long_exit: {best.long_exit}")
 
+
 # Function for a stability heatmap
 def plot_stability_heatmap(results):
     """
     Plots a stability heatmap of RSI Period vs Long Entry to
-      check for 'Plateaus' as opposed to 'Spikes/Islands'.
+      check for 'Plateaus' as opposed to 'Spikes/Islands'
+      for parameter overfitting.
     """
     x = [i.rsi_period for i in results]
     y = [i.long_entry for i in results]
@@ -485,6 +490,7 @@ def plot_stability_heatmap(results):
 
     plt.scatter(x, y, c="black", s=5, alpha=0.3)
     plt.show()
+
 
 def main():
     """
