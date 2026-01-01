@@ -41,13 +41,16 @@ Initially after running Bayesian Optimization, I observed a consistent pattern, 
 
 ## Optimization Results
 ![Figure 1](/images/results1.png)
+
 *Figure 1: Top 10 Bayesian optimization configurations ranked by Sharpe ratio along with other statistical metrics.*
 
 
 ![Figure 2](/images/stabilitychart1.png)
+
 *Figure 2: Optimization stability surface for RSI Period vs. Long Entry threshold. Higher values indicate stronger backtest performance.*
 
 ![Figure 3](/images/out_of_sample_test.png)
+
 *Figure 3: Backtest result using the optimal configuration denoted by the Bayesian optimizer.*
 
 Bayesian optimization consistently converges to a narrow region of the parameter space centered around 10-12 RSI with a long entry threshold in the low 30s, and a long exit threshold approaching 60. I chose to visualize the behavior on a stability graph (see figure 2) as it would also give me an indicator in the event of parameter overfitting. Using Sharpe ratio as the objective function, the best configuration reported was:
@@ -61,23 +64,34 @@ Bayesian optimization consistently converges to a narrow region of the parameter
 - Pyramid Multiplier: 2.5
 ```
 
-results included headline metrics such as a Sharpe Ratio of 20.6, Calmar Ratio of 21.3, and a total return of 378% alongside a massive number of trades (53k). While these metrics are very impressive and even more so that it performed positively out-of-sample, it suggests that these parameters behave more as a high-frequency or a scalping interpretation of the strategy.
+results included headline metrics such an extremely high Sharpe and Calmar Ratios, alongside a massive number of trades. While these metrics are very impressive and even more so that it performed positively out-of-sample, it suggests that these parameters behave more as a high-frequency or a scalping interpretation of the strategy.
 
 ## Summary and Back Test Results
 Due to computational setbacks, I chose to run the final backtests from January 2022 to December 2024. Including 2022 was very important here since it contained the 2022 stock market decline, if the model could bounce back from such a decline, it would be more likely to be successful in future tests.
 
 ![Figure 4](/images/backtest_results_1.png)
+
 *Figure 4: Full backtest run on optimized parameters as chosen by the Bayesian optimizer. (Scalping Model)*
 
 ### A). Scalping (Optimized Parameters)
 In the high-frequency scalping style denoted by figures 1 and 2, the strategy triggers frequently and bullish divergence appears to act as a more permissive catalyst which results in pyramiding logic firing more frequently. The main benefit of this strategy is that it makes very consistent positive returns, even in out-of-sample results, the strategy holds and produces results in the testing environment. However, I anticipate that it would be very sensitive to execution and commission factors. The large number of trades would certainly reduce the effectiveness of such a strategy.
 
 ![Figure 5](/images/backtest_results_2.png)
+
 *Figure 5: Full backtest run with default parameters. (Constrained Model)*
 
 
 ### B). Constrained/Non-Scalping (Default Parameters)
-In the constrained interpretation, the strategy is based on the intended logic from the original Pine Script. It enforces a much more realistic behavior by avoiding rapid-firing trades and pyramids, producing results that are very interpretable; indicating clear casual links between signal conditions and trades.
+In the constrained interpretation, the strategy is based on the intended logic from the original Pine Script. It enforces a much more realistic behavior by avoiding rapid-firing trades and pyramids, producing results that are very interpretable; indicating clear casual links between signal conditions and trades. As note, I've included the default parameters used below:
+
+```
+- RSI Period: 14
+- Long Entry: 31
+- Long Exit: 83
+- ATR Period: 14
+- Sensitivity: 0.3
+- Pyramid Multiplier: 2
+```
 
 In short, I’ve opted for the constrained / non-scalping strategy on the default parameters since it satisfies the criteria that matters the most in a realistic scenario. For starters, it’s a very faithful translation of the original Pine Script. But it produces a more plausible trade frequency and risk statistics and is less dependent on execution assumptions (eg. commission fees). The pyramid behavior is much more predictable and respectful, reducing unwanted risk. This strategy is much more likely to remain robust under further out-of-sample testing than its high frequency counterpart.
 
