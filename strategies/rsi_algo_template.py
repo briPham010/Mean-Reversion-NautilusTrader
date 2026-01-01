@@ -54,17 +54,17 @@ class RsiAlgoConfig(StrategyConfig):
 
     instrument_id: str
     bar_type: str
-    rsi_period: int = 14
-    long_entry: float = 31  # RSI threshold for entering long (oversold)
-    long_exit: float = 83  # RSI threshold for exiting long (overbought)
+    rsi_period: int = 10
+    long_entry: float = 31.3  # RSI threshold for entering long (oversold)
+    long_exit: float = 60  # RSI threshold for exiting long (overbought)
     base_qty: int = 2  # Base position size in contracts
     enable_pyramid: bool = True
     max_position: int = 6  # Maximum total position size
 
     # Configurations for Optimization
-    atr_period = 14
-    sensitivity = 0.3
-    pyramid_multiplier: float = 2
+    atr_period = 18
+    sensitivity = 0.2
+    pyramid_multiplier: float = 2.5
 
 
 class RsiAlgoStrategy(Strategy):
