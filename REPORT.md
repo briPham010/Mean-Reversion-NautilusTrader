@@ -83,7 +83,6 @@ Due to computational setbacks, I chose to run the final backtests from January 2
 ### A). Scalping (Optimized Parameters)
 In the high-frequency scalping style denoted by figures 1 and 2, the strategy triggers frequently and bullish divergence appears to act as a more permissive catalyst which results in pyramiding logic firing more frequently. The main benefit of this strategy is that it makes very consistent positive returns, even in out-of-sample results, the strategy holds and produces results in the testing environment. However, I anticipate that it would be very sensitive to execution and commission factors. The large number of trades would certainly reduce the effectiveness of such a strategy.
 
-
 ![Figure 4](/images/backtest_results_1.png)
 
 *Figure 4: Full backtest run on optimized parameters as chosen by the Bayesian optimizer. (Scalping Model)*

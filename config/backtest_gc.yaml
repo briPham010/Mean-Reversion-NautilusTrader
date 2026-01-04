@@ -17,12 +17,12 @@ engine:
         bar_type: "1-MINUTE-LAST-EXTERNAL"
         
         # RSI Parameters
-        rsi_period: 10      # RSI calculation period (default: 14)
-        long_entry: 31.3        # RSI threshold for entering long positions (oversold)
-        long_exit: 60       # RSI threshold for exiting long positions (overbought)
+        rsi_period: 14      # RSI calculation period (default: 14)
+        long_entry: 31        # RSI threshold for entering long positions (oversold)
+        long_exit: 83       # RSI threshold for exiting long positions (overbought)
         sensitivity: 0.2
-        atr_period: 18
-        pyramid_multiplier: 2.5
+        atr_period: 14
+        pyramid_multiplier: 2
         
         # Position Sizing
         base_qty: 2           # Base position size in contracts
