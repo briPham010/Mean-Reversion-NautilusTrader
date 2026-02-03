@@ -1,17 +1,5 @@
 """
 Parameter Optimization Script
-
-This script provides a framework for optimizing strategy parameters.
-YOU MUST IMPLEMENT YOUR OWN OPTIMIZATION METHODS.
-
-Available approaches you could implement:
-- Grid Search: Exhaustive search over parameter combinations
-- Random Search: Random sampling of parameter space
-- Bayesian Optimization: Uses prior evaluations to guide search
-- Genetic Algorithms: Evolutionary approach to find optimal parameters
-- Simulated Annealing: Probabilistic technique for global optimization
-- Gradient-based methods: If parameters are continuous and differentiable
-
 Usage:
     python optimize_params.py
 

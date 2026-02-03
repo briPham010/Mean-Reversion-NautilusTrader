@@ -12,7 +12,6 @@ The script will:
 3. Run the strategy on the GC 1-minute data
 4. Print performance metrics
 
-See Nautilus Backtesting Docs: https://nautilustrader.io/docs/latest/backtesting/
 """
 
 import yaml

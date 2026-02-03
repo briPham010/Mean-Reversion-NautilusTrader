@@ -1,9 +1,4 @@
 """
-RSI Algorithm Strategy Template
-
-This strategy template implements the Pine Script RSI Algo V4 logic using Nautilus Trader.
-The template is structured with TODO sections for you to complete the implementation.
-
 Strategy Logic (from Pine Script RSI Algo V4):
 - Enter long positions when RSI crosses below long_entry threshold (oversold)
 - Exit long positions when RSI crosses above long_exit threshold (overbought)
@@ -369,9 +364,6 @@ class RsiAlgoStrategy(Strategy):
             v = float(bar.volume)
         self.volumes.append(v)
 
-        if self.bar_index % 50000 == 0:
-            self.log.info(f"bar_index={self.bar_index}")
-
         # ====================================================================
         # === 1: Compute indicators ===
         # ====================================================================
@@ -570,6 +562,7 @@ class RsiAlgoStrategy(Strategy):
                     self.pyramid_count = 0
                     self.last_entry_bar_index = self.bar_index
                     self.last_entry_rsi_level = self.long_entry
+                    return
 
             # Entry #2: Bullish RSI Divergence path
             elif self.bullish_divergence:
@@ -580,6 +573,7 @@ class RsiAlgoStrategy(Strategy):
                 self.pyramid_count = 0
                 self.last_entry_bar_index = self.bar_index
                 self.last_entry_rsi_level = self.long_entry
+                return
 
         # ====================================================================
         # === Implement pyramid logic ===
